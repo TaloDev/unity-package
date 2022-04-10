@@ -1,8 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
-using System.Net.Http;
 using System;
-using System.Text;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -13,7 +11,7 @@ namespace TaloGameServices
         private List<Event> queue = new List<Event>();
         private readonly int minQueueSize = 10;
 
-        public EventsAPI(TaloSettings settings, HttpClient client) : base(settings, client, "events") { }
+        public EventsAPI(TaloManager manager) : base(manager, "events") { }
 
         public void Track(string name)
         {
@@ -47,23 +45,24 @@ namespace TaloGameServices
             Talo.IdentityCheck();
 
             var eventsToSend = queue.ToArray();
-            queue.Clear();
-
-            var req = new HttpRequestMessage();
-            req.Method = HttpMethod.Post;
-            req.RequestUri = new Uri(baseUrl);
-
-            string content = JsonUtility.ToJson(new EventsPostRequest(eventsToSend));
-            req.Content = new StringContent(content, Encoding.UTF8, "application/json");
-
-            try
+            
+            if (eventsToSend.Length > 0)
             {
-                await Call(req);
-            }
-            catch (HttpRequestException err)
-            {
-                Debug.LogError(err.Message);
-                queue.AddRange(eventsToSend);
+                queue.Clear();
+
+                var uri = new Uri(baseUrl);
+                var content = JsonUtility.ToJson(new EventsPostRequest(eventsToSend));
+
+                try
+                {
+                    await Call(uri, "POST", content);
+                    manager.ResetFlushTimer();
+                }
+                catch (Exception err)
+                {
+                    Debug.LogError(err.Message);
+                    queue.AddRange(eventsToSend);
+                }
             }
         }
     }
